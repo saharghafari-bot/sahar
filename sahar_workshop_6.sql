@@ -295,6 +295,7 @@ GROUP BY
 ORDER BY overdue_book_count DESC;
 
 --11. Analyze monthly borrowing trends. Show the year, month, number of loans, and number of unique patrons for each month.
+-- i got help from google for this part. i did not know strftime
 
 SELECT
     strftime('%Y', checkout_date) AS loan_year,
