@@ -143,6 +143,8 @@ ON L.patron_id = P.patron_id
 WHERE L.checkout_date >= '01-01-20203'
 AND L.checkout_date >='02-02-2023';
 
+
+
 --5.Multi-table JOIN: Show book details (title, author's full name, genre_name) for each loan, along with the checkout_date and due_date.
 --Soultion 1 using INNER JOIN
 SELECT 
@@ -247,6 +249,180 @@ LEFT JOIN Books AS B
     ON B.genre_id = G.genre_id
 GROUP BY G.genre_id, G.genre_name;
 
+--9.Calculate the average, minimum, and maximum loan duration (days between checkout and return) for each library branch. Include only returned books.
+
+
+SELECT
+    BR.branch_name,
+    AVG(return_date - checkout_date) AS average_loan_duration,
+    MIN(return_date - checkout_date) AS minimum_loan_duration,
+    MAX(return_date - checkout_date) AS maximum_loan_duration
+FROM Loans AS L
+INNER JOIN Branches AS BR
+    ON L.branch_id = BR.branch_id
+WHERE L.return_date IS NOT NULL
+GROUP BY BR.branch_name;
+
+-- left JOIN
+
+
+SELECT
+    BR.branch_name,
+    AVG(return_date - checkout_date) AS average_loan_duration,
+    MIN(return_date - checkout_date) AS minimum_loan_duration,
+    MAX(return_date - checkout_date) AS maximum_loan_duration
+FROM Loans AS L
+LEFT JOIN Branches AS BR
+    ON L.branch_id = BR.branch_id
+WHERE L.return_date IS NOT NULL
+GROUP BY BR.branch_name;
+
+--10.Find patrons with overdue books (due_date < CURRENT_DATE and return_date = ' '), along with the count of overdue books they have.
+SELECT
+    P.patron_id,
+    P.first_name,
+    P.last_name,
+    COUNT(L.loan_id) AS overdue_book_count
+FROM Loans AS L
+INNER JOIN Patrons AS P
+    ON L.patron_id = P.patron_id
+WHERE L.due_date < CURRENT_DATE
+    AND (L.return_date IS NULL)
+GROUP BY
+    P.patron_id,
+    P.first_name,
+    P.last_name
+ORDER BY overdue_book_count DESC;
+
+--11. Analyze monthly borrowing trends. Show the year, month, number of loans, and number of unique patrons for each month.
+
+SELECT
+    strftime('%Y', checkout_date) AS loan_year,
+    strftime('%m', checkout_date) AS loan_month,
+    COUNT(loan_id) AS number_of_loans,
+    COUNT(DISTINCT patron_id) AS unique_patrons
+FROM Loans
+GROUP BY
+    strftime('%Y', checkout_date),
+    strftime('%m', checkout_date)
+ORDER BY
+    loan_year,
+    loan_month;
+	
+	--BONUS: Write a query to create a simple data dictionary for the library database schema, listing table names, column names, data types, and whether they are primary keys.
+	-- i couldnt run the queries as a unique query. I do not know how to join them
+    
+SELECT 'Loans' AS table_name,
+       'loan_id' AS column_name,
+       'INTEGER' AS data_type,
+       'Yes' AS primary_key;
+	   
+	   SELECT 'Loans' AS table_name,
+       'book_id' AS column_name,
+       'INTEGER' AS data_type,
+       'No' AS primary_key;
+	   
+	   SELECT 'Loans' AS table_name,
+       'patron_id' AS column_name,
+       'INTEGER' AS data_type,
+       'No' AS primary_key;
+	   
+	   SELECT 'Loans' AS table_name,
+       'branch_id' AS column_name,
+       'INTEGER' AS data_type,
+       'No' AS primary_key;
+	   
+	   SELECT 'Loans' AS table_name,
+       'checkout_date' AS column_name,
+       'TEXT' AS data_type,
+       'No' AS primary_key;
+	   
+	   SELECT 'Loans' AS table_name,
+       'due_date' AS column_name,
+       'TEXT' AS data_type,
+       'No' AS primary_key;
+	   
+	   SELECT 'Loans' AS table_name,
+       'return_date' AS column_name,
+       'TEXT' AS data_type,
+       'No' AS primary_key;
+	   
+
+--Discussion Questions
+--In our library database, we track which branch a book was borrowed from, but books can exist at multiple branches. How would you modify the schema to track the actual inventory at each branch?
+-- I modify the schema by adding a new inventory table like this that contains copies owned at each branch. 
+--
+CREATE TABLE Inventory (
+    inventory_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    book_id      INTEGER NOT NULL
+                         REFERENCES Books (book_id),
+    branch_id    INTEGER NOT NULL
+                         REFERENCES Branches (branch_id),
+    copies_owned INTEGER NOT NULL
+                         REFERENCES Books (copies_owned) 
+);
+
+--Based on the provided data model, what business questions could library administrators answer using SQL queries that we haven't covered in our exercise?
+--•	Which books are borrowed most frequently?
+
+
+SELECT
+    B.book_id,
+    B.title,
+    COUNT(L.loan_id) AS times_borrowed
+FROM Books AS B
+INNER JOIN Loans AS L
+    ON B.book_id = L.book_id
+GROUP BY
+    B.book_id,
+    B.title
+ORDER BY
+    times_borrowed DESC;
+	-- Which author is most popular among Patrons
+	
+	
+SELECT
+    A.author_id,
+    A.first_name,
+    A.last_name,
+    COUNT(L.loan_id) AS total_borrows
+FROM Authors AS A
+INNER JOIN Books AS B
+    ON A.author_id = B.author_id
+INNER JOIN Loans AS L
+    ON B.book_id = L.book_id
+GROUP BY
+    A.author_id,
+    A.first_name,
+    A.last_name
+ORDER BY
+    total_borrows DESC;
+	-- How would you extend this schema to track additional patron interactions, such as reserved books, late fees, or participation in library programs?
+	-- add new tables for reservation, late fees, and participations 
+
+
+CREATE TABLE Reservations (
+    reservation_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    patron_id INTEGER NOT NULL,
+    book_id INTEGER NOT NULL,
+    reservation_date TEXT NOT NULL,
+    status TEXT NOT NULL,
+    FOREIGN KEY (patron_id) REFERENCES Patrons(patron_id),
+    FOREIGN KEY (book_id) REFERENCES Books(book_id)
+);
+
+
+
+CREATE TABLE LateFees (
+    fee_charge_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    loan_id INTEGER NOT NULL,
+    patron_id INTEGER NOT NULL,
+    amount DECIMAL(5,2) NOT NULL,
+    fee_date TEXT NOT NULL,
+    paid_status TEXT NOT NULL,
+    FOREIGN KEY (loan_id) REFERENCES Loans(loan_id),
+    FOREIGN KEY (patron_id) REFERENCES Patrons(patron_id)
+);
 /*
 A. ON DELETE SET NULL
 What it does: When a record in the parent table is deleted, the foreign key column in the child table is automatically set to NULL.
